@@ -1,4 +1,4 @@
-/*This code visualizes total or source-wise geometric efficiencies of the optical module source pairs.
+/*This code visualizes total or source-wise geometric efficiencies of the optical module source pairs. 
 
 Note on numbering: The OMs are numbered 0-259 starting from bottom left corner and column-wise. (convention of TKEvent by Tomas)
 Sources are numbered 0-41 starting from top left corner and row-wise. (Convention of CalibrationModule by Filip)
@@ -40,7 +40,7 @@ std::pair<double, double> get_values_on_line(const std::string& filename, int ta
     }
 
     std::string line;
-    int current_line = 0; //zero-based indexing
+    int current_line = 0; //zero-based indexing 
 
     while (std::getline(infile, line)) {
         if (current_line == target_line) {
@@ -73,7 +73,7 @@ std::array<double,3> OMnum_to_position(int OM_num){
     array<double,4> SWCR;
     array<double,3> xyz;
     //mainwall IT
-	if(OM_num < 260)
+	if(OM_num < 260) 
 	{
 		SWCR[0] = 0;
 		SWCR[1] = -1;
@@ -88,7 +88,7 @@ std::array<double,3> OMnum_to_position(int OM_num){
 		SWCR[2] = (OM_num - 260) / 13;
 		SWCR[3] = (OM_num - 260) % 13;
 	}
-	//Xcalo IT
+	//Xcalo IT	
 	else if(OM_num < 584)
 	{
 		SWCR[0] = 0;
@@ -120,7 +120,9 @@ std::array<double,3> OMnum_to_position(int OM_num){
 		SWCR[2] = (OM_num - 520 - 128 - 32) % 16;
 		SWCR[3] = -1;
 	}
+	
 	int OM_type;
+	
 	if(OM_num < 520)
 	{
 		OM_type = 1302;
@@ -143,13 +145,15 @@ std::array<double,3> OMnum_to_position(int OM_num){
 				xyz[0] = -532.0;
 				xyz[1] = ((double)SWCR[2]- 9.5) * 259.0;
 				xyz[2] = ((double)SWCR[3] - 6) * 259.0;
+				
 			break;
+			
 		case 1232: //XW
 			if(SWCR[1] == 1)
 				xyz[1] = 2580.5;
 			else
 				xyz[1] = -2580.5;
-
+				
 			if(SWCR[0] == 1)
 			{
 				if(SWCR[2] == 1)
@@ -165,11 +169,11 @@ std::array<double,3> OMnum_to_position(int OM_num){
 				else
 					xyz[0] = -130.0;
 			}
-
+			
 			xyz[2] = ((double)SWCR[3] - 7.5) * 212.0;
-
+			
 			break;
-
+			
 		case 1252: //GV
 			if(SWCR[0] == 1)
 				xyz[0] = 213.5;
@@ -183,7 +187,7 @@ std::array<double,3> OMnum_to_position(int OM_num){
 				xyz[1] = 161.0 + (((double)SWCR[2]-8) * 311.5);
 			else
 				xyz[1] = -161.0 + (((double)SWCR[2]-7) * 311.5);
-			break;
+			break;	
 
 	}
     return xyz;
@@ -201,7 +205,7 @@ double solidAngle(double yShift, double zShift, double x){
         -centerSolidAngle(2.0*(yShift),2.0*(zLength+zShift),x)
         -centerSolidAngle(2.0*(yLength+yShift),2.0*(zShift),x)
         +centerSolidAngle(2.0*(yShift),2.0*(zShift),x);
-
+    
     return sAngle/4.0;
 }
 
@@ -209,14 +213,14 @@ double geometricEfficiency_OMS(int OM_number, int source_number){
     //OM number to OM position
     std::array<double,3> OM_pos;
     OM_pos = OMnum_to_position(OM_number);
-
+    
     //bottom left corner positions
     double blc_y = OM_pos[1]-mw_sizey/2.0;
     double blc_z = OM_pos[2]-mw_sizez/2.0;
-
+    
     //Source number to source position (source_number: 0-41)
     std::pair<double, double> positions = get_values_on_line("source_positions.txt.in", source_number);
-
+    
     //Distances between source and bottom left corner of OM
     double yShift = blc_y-positions.first;
     double zShift = blc_z-positions.second;
@@ -230,18 +234,18 @@ std::array<double, 260> geom_eff(){
     std::array<double, 260> total_efficiencies;
     //activities of sources as measured by Miro on July 1 2018
     //
-    double activities[42] = {129.2, 127.9, 138.5, 125.8, 134.3, 128.4,
-                            129.5, 131.0, 125.0, 129.8, 124.7, 132.0,
-                            133.8, 126.6, 131.3, 130.1, 133.0, 122.8,
-                            122.2, 139.1, 130.9, 140.9, 119.8, 135.0,
-                            132.5, 127.4, 131.9, 130.0, 132.6, 128.4,
-                            123.7, 131.1, 125.5, 130.7, 124.9, 132.2,
+    double activities[42] = {129.2, 127.9, 138.5, 125.8, 134.3, 128.4, 
+                            129.5, 131.0, 125.0, 129.8, 124.7, 132.0, 
+                            133.8, 126.6, 131.3, 130.1, 133.0, 122.8, 
+                            122.2, 139.1, 130.9, 140.9, 119.8, 135.0, 
+                            132.5, 127.4, 131.9, 130.0, 132.6, 128.4, 
+                            123.7, 131.1, 125.5, 130.7, 124.9, 132.2, 
                             131.4, 128.0, 137.3, 128.3, 136.3, 127.1};
-
+    
     for(int i = 0; i < 260; i++){
-
+        
         total_efficiencies[i] = 0;
-
+        
         for(int j = 0; j < 42; j++){
             total_efficiencies[i] += activities[j]*geometricEfficiency_OMS(i, j);
             std::cout << "OM " << i << "src " << j << " srcact " << activities[j] << " geomeff " << geometricEfficiency_OMS(i, j) << std::endl;
@@ -250,110 +254,66 @@ std::array<double, 260> geom_eff(){
     return total_efficiencies;
 }
 
-void total_eff_visualization(){
-    //PICK WHETHER YOU WANT TOTAL(true) OR SOURCE-WISE(false) VISUALIZATION
-    bool total_vis = false;
+void total_eff() {
+    // Settings
+    bool total_vis = false;  // true = total histogram, false = 42 source histograms
     double mw_sizey = 256.0;
     double mw_sizez = 256.0;
     int weight = 1;
     int nbinsx = 20;
     int nbinsy = 13;
-    
-//cout<<double(nbinsx)/2*mw_sizey<<endl;
-//cout<<double(nbinsy)/2*mw_sizey<<endl;
-  /*  double xlow = -2560=-double(nbinsx)/2*mv_sizey;
-    double xup = 2560;
-    double ylow = -1664;
-    double yup = 1664;
-    */
-    double rl = 0.09;
-    double rr = 0.35;
-    double rt = 0.1;
-    double rb = 0.1;
-    double R = double(nbinsx)/double(nbinsy);
-    double px = 1000;
-    double py = (px/R)*(1-rl-rr)/(1-rb-rt);
- 
-    
-    //TOTAL VISUALIZIATION
-    if(total_vis){
-   // TH2D *hist = new TH2D("hist", "", nbinsx, xlow, xup, nbinsy, ylow, yup);
-   TH2D *hist = new TH2D("hist","Total Efficiency", nbinsx,-double(nbinsx)/2*mw_sizey, double(nbinsx)/2*mw_sizey, nbinsy, -double(nbinsy)/2*mw_sizey, double(nbinsy)/2*mw_sizey);
-     std::array<double, 260> total_eff = geom_eff();
-    
-        for (int i = 0; i < 260; ++i) {
-            int y = i / 13;      // 0 to 19 (column)
-            int z = i % 13;      // 0 to 13 (row)
-            double a = weight*total_eff[i];
-            hist->SetBinContent(y + 1, z + 1, a);
-        }      
-         TCanvas *c = new TCanvas("c", "Total Efficiency Visualization", px, py);
-    hist->Draw("COLZ");  // Draw the 2D histogram with color map
 
-    c->Update();  // Update the canvas (optional but useful)
+    // Output ROOT file
+    TFile *outfile = new TFile("total_eff.root", "RECREATE");
+
+    // TOTAL EFFICIENCY
+    if (total_vis) {
+        TH2D *hist = new TH2D("hist", "Total Efficiency",
+                              nbinsx, -double(nbinsx)/2 * mw_sizey, double(nbinsx)/2 * mw_sizey,
+                              nbinsy, -double(nbinsy)/2 * mw_sizez, double(nbinsy)/2 * mw_sizez);
+
+        std::array<double, 260> total_eff = geom_eff();
+
+        for (int i = 0; i < 260; ++i) {
+            int y = i / 13;
+            int z = i % 13;
+            double a = weight * total_eff[i];
+            hist->SetBinContent(y + 1, z + 1, a);
+        }
+
+        hist->GetXaxis()->SetTitle("y [mm]");
+        hist->GetYaxis()->SetTitle("z [mm]");
+        hist->GetZaxis()->SetTitle("#varepsilon_{g}");
+        hist->Write();
     }
 
-    //VISUALIZATION FOR EACH SOURCE
-    if(!total_vis){
+    // SOURCE-WISE EFFICIENCIES
+    if (!total_vis) {
+        const int nHists = 42;
+        std::vector<TH2D*> hist(nHists);
 
- gROOT->SetBatch(kTRUE); // No GUI pop-ups
+        for (int i = 0; i < nHists; ++i) {
+            hist[i] = new TH2D(Form("hist%d", i), Form("#varepsilon_{G} source %d", i),
+                               nbinsx, -double(nbinsx)/2 * mw_sizey, double(nbinsx)/2 * mw_sizey,
+                               nbinsy, -double(nbinsy)/2 * mw_sizez, double(nbinsy)/2 * mw_sizez);
 
-const int nHists = 42;
-std::vector<TH2D*> hist(nHists);
+            double threshold = 0.0001;
 
-for (int i = 0; i < nHists; ++i) {
-    hist[i] = new TH2D(Form("hist%d", i), Form("#varepsilon_{g} source %d", i),
-                       nbinsx,-double(nbinsx)/2*mw_sizey, double(nbinsx)/2*mw_sizey, nbinsy, -double(nbinsy)/2*mw_sizey, double(nbinsy)/2*mw_sizey);
+            for (int j = 0; j < 260; ++j) {
+                int y = j / 13;
+                int z = j % 13;
+                double a = geometricEfficiency_OMS(j, i);
+                if (a > threshold) {
+                    hist[i]->SetBinContent(y + 1, z + 1, a);
+                }
+            }
 
-    int source_num = i;
-    double threshold = 0.0001;
-
-    for (int j = 0; j < 260; ++j) {
-        int y = j / 13; // y = 0 to 19
-        int z = j % 13; // z = 0 to 12
-
-        double a = geometricEfficiency_OMS(j, source_num);
-        if (a > threshold) {
-            hist[i]->SetBinContent(y + 1, z + 1, a);
+            hist[i]->GetXaxis()->SetTitle("y [mm]");
+            hist[i]->GetYaxis()->SetTitle("z [mm]");
+            
+            hist[i]->Write();
         }
     }
-    TCanvas *c = new TCanvas(Form("c%d", i), "Canvas", px, py);
-    c->cd();
-       c->SetLeftMargin(rl);
-       c->SetTopMargin(rt);
-       c->SetBottomMargin(rb); 
 
-    c->SetRightMargin(rr);
-
-    // Force full axis range to be displayed
-    hist[i]->GetXaxis()->SetRangeUser(-double(nbinsx)/2*mw_sizey, double(nbinsx)/2*mw_sizey);
-    hist[i]->GetYaxis()->SetRangeUser(-double(nbinsy)/2*mw_sizey, double(nbinsy)/2*mw_sizey);
-    
-    hist[i]->GetXaxis()->SetTitle("y [mm]");
-    hist[i]->GetYaxis()->SetTitle("z [mm]");
-
-
-    hist[i]->Draw("COLZ");
-
-/*
-    // Create TPaletteAxis inside visible axis range
-    double pal_xmin = xup + 200;  // move palette inside visible range
-    double pal_xmax = xup + 371.2;
-    double pal_ymin = ylow + 341.28;
-    double pal_ymax = yup - 100; 
-
-    TPaletteAxis* palette = new TPaletteAxis(pal_xmin, pal_ymin, pal_xmax, pal_ymax, hist[i]);
-    hist[i]->GetListOfFunctions()->Add(palette, "br"); 
-*/
- 
-  // Re-draw and update   
-  hist[i]->Draw("COLZ");
-
-    c->Update();
-
-    c->SaveAs(Form("plots/p%d.png", i));
+    outfile->Close();
 }
-
-} 
-
-}    
