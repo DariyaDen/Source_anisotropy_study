@@ -1,3 +1,49 @@
+#include <TFile.h>
+#include <TCanvas.h>
+#include <TROOT.h>
+#include <TH2D.h>
+#include <TGraph.h>
+#include <TLatex.h>
+#include <fstream>
+#include <sstream>
+#include <iostream>
+
+// Reads one pair of values (x, y) from the specified line in the input file
+std::pair<double, double> get_values_on_line(const std::string& filename, int target_line) {
+    std::ifstream infile(filename);
+    if (!infile) {
+        throw std::runtime_error("Could not open file: " + filename);
+    }
+
+    std::string line;
+    int current_line = 0;
+
+    while (std::getline(infile, line)) {
+        if (current_line == target_line) {
+            std::istringstream ss(line);
+            std::string token;
+            double val1, val2;
+
+            if (std::getline(ss, token, ';')) {
+                val1 = std::stod(token);
+            } else {
+                throw std::runtime_error("Missing first value on line " + std::to_string(target_line));
+            }
+
+            if (std::getline(ss, token)) {
+                val2 = std::stod(token);
+            } else {
+                throw std::runtime_error("Missing second value on line " + std::to_string(target_line));
+            }
+
+            return {val1, val2};
+        }
+        ++current_line;
+    }
+
+    throw std::out_of_range("Line number " + std::to_string(target_line) + " exceeds file length");
+}
+
 void visu() {
     // Open the ROOT file with histograms
     TFile *file = TFile::Open("total_eff.root");
@@ -38,10 +84,11 @@ void visu() {
         c->SaveAs("plots/total_efficiency.png");
     }
 
-    // PER-SOURCE VISUALIZATION
+    // PER-SOURCE VISUALIZATION + POINT
     if (!total_vis) {
-    gROOT->SetBatch(kTRUE); // No GUI pop-ups
+        gROOT->SetBatch(kTRUE); // No GUI pop-ups
         const int nHists = 42;
+
         for (int i = 0; i < nHists; ++i) {
             TH2D *hist = (TH2D*)file->Get(Form("hist%d", i));
             if (!hist) {
@@ -50,16 +97,31 @@ void visu() {
             }
 
             TCanvas *c = new TCanvas(Form("c%d", i), "Canvas", px, py);
-            c->cd();
             c->SetLeftMargin(rl);
             c->SetTopMargin(rt);
             c->SetBottomMargin(rb);
             c->SetRightMargin(rr);
+            c->cd();
 
             hist->GetXaxis()->SetTitle("y [mm]");
             hist->GetYaxis()->SetTitle("z [mm]");
-
             hist->Draw("COLZ");
+
+            // Add the source point overlay
+            try {
+                std::pair<double, double> pos = get_values_on_line("source_positions.txt.in", i);
+                double x = pos.first;
+                double y = pos.second;
+
+                TGraph *point = new TGraph(1, &x, &y);
+                point->SetMarkerStyle(20);
+                point->SetMarkerSize(1.0);
+                point->SetMarkerColor(kRed + 2);
+                point->Draw("P SAME");
+            } catch (const std::exception& e) {
+                std::cerr << "Error getting source position for hist" << i << ": " << e.what() << std::endl;
+            }
+
             c->Update();
             c->SaveAs(Form("plots/p%d.png", i));
         }
@@ -67,3 +129,4 @@ void visu() {
 
     file->Close();
 }
+
