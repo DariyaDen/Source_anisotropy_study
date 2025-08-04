@@ -7,8 +7,6 @@ total_eff_visualization.cpp: creates 2D histogram visualization of (1) total geo
 
 plotting.cpp: generates a plot of optical modules (as boxes) and sources (as green dots) according to superNEMO geometry
 
-function_visualization.cpp: generates a plot of the solid angle function for visualization
-
 source_positions.txt.in: contains positions of the 42 Bismuth sources as provided by Filip's CalibrationModule
 
 source_activity.txt.in: contains activities associated with each Bismuth source and their associated numbers as numbered by superNEMO (not explicitly used in the code)
