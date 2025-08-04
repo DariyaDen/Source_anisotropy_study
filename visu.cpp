@@ -3,128 +3,119 @@
 #include <TROOT.h>
 #include <TH2D.h>
 #include <TGraph.h>
+#include <TBox.h>
 #include <TLatex.h>
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include <vector>
+#include <string>
 
-// Reads one pair of values (x, y) from the specified line in the input file
-std::pair<double, double> get_values_on_line(const std::string& filename, int target_line) {
+// Helper to read value pairs (x, y) from text file line-by-line
+// Expects lines like: index x y (space-separated)
+std::vector<std::pair<double, double>> read_positions_from_file(const std::string& filename) {
+    std::vector<std::pair<double, double>> positions;
     std::ifstream infile(filename);
-    if (!infile) {
-        throw std::runtime_error("Could not open file: " + filename);
-    }
-
     std::string line;
-    int current_line = 0;
 
     while (std::getline(infile, line)) {
-        if (current_line == target_line) {
-            std::istringstream ss(line);
-            std::string token;
-            double val1, val2;
+        std::istringstream ss(line);
+        std::string index_str;
+        double x, y;
 
-            if (std::getline(ss, token, ';')) {
-                val1 = std::stod(token);
-            } else {
-                throw std::runtime_error("Missing first value on line " + std::to_string(target_line));
-            }
-
-            if (std::getline(ss, token)) {
-                val2 = std::stod(token);
-            } else {
-                throw std::runtime_error("Missing second value on line " + std::to_string(target_line));
-            }
-
-            return {val1, val2};
+        if (!(ss >> index_str >> x >> y)) {
+            // Skip lines that don't parse properly
+            continue;
         }
-        ++current_line;
+
+        positions.emplace_back(x, y);
     }
 
-    throw std::out_of_range("Line number " + std::to_string(target_line) + " exceeds file length");
+    return positions;
 }
 
 void visu() {
-    // Open the ROOT file with histograms
-    TFile *file = TFile::Open("total_eff.root");
+    // === Settings ===
+    const int nSources = 42;
+    const int nOMs = 260;
+    int nbinsx = 20, nbinsy = 13;
+
+    double rl = 0.09, rr = 0.35, rt = 0.1, rb = 0.1;
+    double px = 1000;
+    double py = (px / (double(nbinsx)/nbinsy)) * (1 - rl - rr) / (1 - rb - rt);
+
+    // === Load histograms ===
+    TFile* file = TFile::Open("total_eff.root");
     if (!file || file->IsZombie()) {
-        std::cerr << "Error: cannot open total_eff.root" << std::endl;
+        std::cerr << "Error opening total_eff.root\n";
         return;
     }
 
-    // Visualization options
-    bool total_vis = false;  // set to true if you want only the "hist" histogram
-    double mw_sizey = 256.0;
-    double mw_sizez = 256.0;
-    int nbinsx = 20;
-    int nbinsy = 13;
+    // === Load source & OM positions ===
+    std::vector<std::pair<double, double>> src_pos = read_positions_from_file("source_positions.txt");
+    std::vector<std::pair<double, double>> om_pos  = read_positions_from_file("/sps/nemo/scratch/ddenysenko/GE/om_positions.txt");
 
-    double rl = 0.09;
-    double rr = 0.35;
-    double rt = 0.1;
-    double rb = 0.1;
-    double R = double(nbinsx) / double(nbinsy);
-    double px = 1000;
-    double py = (px / R) * (1 - rl - rr) / (1 - rb - rt);
+    std::cout << "Loaded " << src_pos.size() << " sources and " << om_pos.size() << " OMs\n";
 
-    // TOTAL VISUALIZATION
-    if (total_vis) {
-        TH2D *hist = (TH2D*)file->Get("hist");
-        if (!hist) {
-            std::cerr << "Error: 'hist' not found in file" << std::endl;
-            return;
-        }
-
-        TCanvas *c = new TCanvas("c", "Total Efficiency Visualization", px, py);
-        hist->GetXaxis()->SetTitle("y [mm]");
-        hist->GetYaxis()->SetTitle("z [mm]");
-        c->cd();
-        hist->Draw("COLZ");
-        c->Update();
-        c->SaveAs("plots/total_efficiency.png");
+    if (src_pos.size() != nSources || om_pos.size() != nOMs) {
+        std::cerr << "Mismatch in expected source or OM count!\n";
+        return;
     }
 
-    // PER-SOURCE VISUALIZATION + POINT
-    if (!total_vis) {
-        gROOT->SetBatch(kTRUE); // No GUI pop-ups
-        const int nHists = 42;
+    gROOT->SetBatch(kTRUE);  // suppress GUI
 
-        for (int i = 0; i < nHists; ++i) {
-            TH2D *hist = (TH2D*)file->Get(Form("hist%d", i));
-            if (!hist) {
-                std::cerr << "Warning: 'hist" << i << "' not found in file" << std::endl;
-                continue;
-            }
-
-            TCanvas *c = new TCanvas(Form("c%d", i), "Canvas", px, py);
-            c->SetLeftMargin(rl);
-            c->SetTopMargin(rt);
-            c->SetBottomMargin(rb);
-            c->SetRightMargin(rr);
-            c->cd();
-
-            hist->GetXaxis()->SetTitle("y [mm]");
-            hist->GetYaxis()->SetTitle("z [mm]");
-            hist->Draw("COLZ");
-
-            // Add the source point overlay
-            try {
-                std::pair<double, double> pos = get_values_on_line("source_positions.txt.in", i);
-                double x = pos.first;
-                double y = pos.second;
-
-                TGraph *point = new TGraph(1, &x, &y);
-                point->SetMarkerStyle(20);
-                point->SetMarkerSize(1.0);
-                point->SetMarkerColor(kRed + 2);
-                point->Draw("P SAME");
-            } catch (const std::exception& e) {
-                std::cerr << "Error getting source position for hist" << i << ": " << e.what() << std::endl;
-            }
-
-            c->Update();
-            c->SaveAs(Form("plots/p%d.png", i));
+    for (int i = 0; i < nSources; ++i) {
+        TH2D* hist = (TH2D*)file->Get(Form("hist%d", i));
+        if (!hist) {
+            std::cerr << "Missing histogram: hist" << i << "\n";
+            continue;
         }
+
+        TCanvas* c = new TCanvas(Form("c%d", i), Form("Source %d Visualization", i), px, py);
+        c->SetLeftMargin(rl);
+        c->SetTopMargin(rt);
+        c->SetBottomMargin(rb);
+        c->SetRightMargin(rr);
+        c->cd();
+
+        hist->GetXaxis()->SetTitle("y [mm]");
+        hist->GetYaxis()->SetTitle("z [mm]");
+        hist->Draw("COLZ");
+
+        // === Plot Source i as a Green Square ===
+        double x = src_pos[i].first;
+        double y = src_pos[i].second;
+        TGraph* src_graph = new TGraph(1, &x, &y);
+        src_graph->SetMarkerStyle(20);  // square
+        src_graph->SetMarkerSize(1.0);
+        src_graph->SetMarkerColor(kGreen + 2);
+        src_graph->Draw("P same");
+
+        // === Plot Contributing OMs as Red Boxes ===
+        std::vector<TBox*> boxes;
+        TLatex latex;
+        latex.SetTextSize(0.015);
+        latex.SetTextAlign(12); // left aligned
+
+        for (int j = 0; j < nOMs; ++j) {
+            double content = hist->GetBinContent(j + 1); // assume each OM is assigned to one bin index
+            if (content <= 0) continue;
+
+            double x_om = om_pos[j].first;
+            double y_om = om_pos[j].second;
+
+            TBox* box = new TBox(x_om - 128, y_om - 128, x_om + 128, y_om + 128);
+            box->SetLineColor(kRed);
+            box->SetFillStyle(0); // transparent
+            box->Draw("same");
+            boxes.push_back(box);
+
+            latex.DrawLatex(x_om + 0.3, y_om, std::to_string(j).c_str());
+        }
+
+        c->Update();
+        c->SaveAs(Form("plots/source_%02d.png", i));
+        delete c;
     }
 
     file->Close();

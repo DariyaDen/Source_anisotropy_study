@@ -10,6 +10,11 @@ Also it should be noted that half of the optical modules that are in the top and
 #include<array>
 #include "TH2D.h"
 #include "TCanvas.h"
+#include <TCanvas.h>
+#include <TGraph.h>
+#include <TLatex.h>
+#include <vector>
+#include <utility>
 
 using namespace std;
 
@@ -289,30 +294,67 @@ void total_eff() {
 
     // SOURCE-WISE EFFICIENCIES
     if (!total_vis) {
-        const int nHists = 42;
-        std::vector<TH2D*> hist(nHists);
+  const int nOM = 260;
+const int nHists = 42;
 
-        for (int i = 0; i < nHists; ++i) {
-            hist[i] = new TH2D(Form("hist%d", i), Form("#varepsilon_{G} source %d", i),
-                               nbinsx, -double(nbinsx)/2 * mw_sizey, double(nbinsx)/2 * mw_sizey,
-                               nbinsy, -double(nbinsy)/2 * mw_sizez, double(nbinsy)/2 * mw_sizez);
+std::vector<TH2D*> hist(nHists);
+std::vector<double> x_pos(nOM, 0.0);
+std::vector<double> y_pos(nOM, 0.0);
+std::vector<double> x_source(nHists, 0.0);
+std::vector<double> y_source(nHists, 0.0);
 
-            double threshold = 0.0001;
+// === Collect OM positions (once) ===
+for (int j = 0; j < nOM; ++j) {
+    std::array<double, 3> pos = OMnum_to_position(j);
+    x_pos[j] = pos[1];  // Y
+    y_pos[j] = pos[2];  // Z
+}
 
-            for (int j = 0; j < 260; ++j) {
-                int y = j / 13;
-                int z = j % 13;
-                double a = geometricEfficiency_OMS(j, i);
-                if (a > threshold) {
-                    hist[i]->SetBinContent(y + 1, z + 1, a);
-                }
-            }
+// === Collect source positions (once) ===
+for (int i = 0; i < nHists; ++i) {
+    std::pair<double, double> positions_source = get_values_on_line("source_positions.txt.in", i);
+    x_source[i] = positions_source.first;
+    y_source[i] = positions_source.second;
+    std::cout << "Source " << i << ": x = " << x_source[i] << ", y = " << y_source[i] << std::endl;
+}
 
-            hist[i]->GetXaxis()->SetTitle("y [mm]");
-            hist[i]->GetYaxis()->SetTitle("z [mm]");
-            
-            hist[i]->Write();
+// === Create and fill histograms ===
+for (int i = 0; i < nHists; ++i) {
+    hist[i] = new TH2D(Form("hist%d", i), Form("#varepsilon_{G} source %d", i),
+                       nbinsx, -double(nbinsx)/2 * mw_sizey, double(nbinsx)/2 * mw_sizey,
+                       nbinsy, -double(nbinsy)/2 * mw_sizez, double(nbinsy)/2 * mw_sizez);
+
+    double threshold = 0.0001;
+
+    for (int j = 0; j < nOM; ++j) {
+        int y = j / 13;
+        int z = j % 13;
+
+        double a = geometricEfficiency_OMS(j, i);
+        if (a > threshold) {
+            hist[i]->SetBinContent(y + 1, z + 1, a);
         }
+    }
+
+    hist[i]->GetXaxis()->SetTitle("y [mm]");
+    hist[i]->GetYaxis()->SetTitle("z [mm]");
+    hist[i]->Write();
+}
+
+// === Save OM positions to file ===
+std::ofstream om_out("om_positions.txt");
+for (int i = 0; i < nOM; i++) {
+    om_out << i << " " << x_pos[i] << " " << y_pos[i] << "\n";
+}
+om_out.close();
+
+// === Save source positions to file ===
+std::ofstream src_out("source_positions.txt");
+for (int i = 0; i < nHists; i++) {
+    src_out << i << " " << x_source[i] << " " << y_source[i] << "\n";
+}
+src_out.close();
+
     }
 
     outfile->Close();
