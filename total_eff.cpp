@@ -22,15 +22,6 @@ using namespace std;
 //const double mw_sizex = 194.0;
 const double mw_sizey = 256.0;
 const double mw_sizez = 256.0;
-
-//const double gv_sizex = 308.0;
-//const double gv_sizey = 310.0;
-//const double gv_sizez = 150.0;
-
-//const double xw_sizex = 200.0;
-//const double xw_sizey = 150.0;
-//const double xw_sizez = 208.5;
-
 const double yLength = 256.0;
 const double zLength = 256.0;
 
@@ -38,30 +29,38 @@ const double zLength = 256.0;
 const double x0 = 435.0;
 
 //reads values of source positions from .txt.in file
-std::pair<double, double> get_values_on_line(const std::string& filename, int target_line) {
+std::pair<double, double> get_values_on_line(const std::string& filename, int target_line) 
+{
     std::ifstream infile(filename);
-    if (!infile) {
+    if (!infile) 
+    {
         throw std::runtime_error("Could not open file: " + filename);
     }
 
     std::string line;
     int current_line = 0; //zero-based indexing 
 
-    while (std::getline(infile, line)) {
-        if (current_line == target_line) {
+    while (std::getline(infile, line)) 
+    {
+        if (current_line == target_line) 
+        {
             std::istringstream ss(line);
             std::string token;
             double val1, val2;
 
-            if (std::getline(ss, token, ';')) {
+            if (std::getline(ss, token, ';')) 
+            {
                 val1 = std::stod(token);
-            } else {
+            } else 
+            {
                 throw std::runtime_error("Missing first value on line " + std::to_string(target_line));
             }
 
-            if (std::getline(ss, token)) {
+            if (std::getline(ss, token)) 
+            {
                 val2 = std::stod(token);
-            } else {
+            } else 
+            {
                 throw std::runtime_error("Missing second value on line " + std::to_string(target_line));
             }
 
@@ -74,7 +73,8 @@ std::pair<double, double> get_values_on_line(const std::string& filename, int ta
 }
 
 //turns OM_number to OM positions
-std::array<double,3> OMnum_to_position(int OM_num){
+std::array<double,3> OMnum_to_position(int OM_num)
+{
     array<double,4> SWCR;
     array<double,3> xyz;
     //mainwall IT
@@ -199,13 +199,15 @@ std::array<double,3> OMnum_to_position(int OM_num){
 }
 
 //calculates the solid angle seen at the origin for a rectangle of dimenions a x b and z away from origin
-double centerSolidAngle(double a, double b, double z){
+double centerSolidAngle(double a, double b, double z)
+{
     double alpha = a/(2.0*z);
     double beta = b/(2.0*z);
     return 4.0*atan(alpha*beta/(sqrt(1.0+alpha*alpha+beta*beta)));
 }
 
-double solidAngle(double yShift, double zShift, double x){
+double solidAngle(double yShift, double zShift, double x)
+{
     double sAngle =  centerSolidAngle(2.0*(yLength+yShift),2.0*(zLength+zShift),x)
         -centerSolidAngle(2.0*(yShift),2.0*(zLength+zShift),x)
         -centerSolidAngle(2.0*(yLength+yShift),2.0*(zShift),x)
@@ -214,7 +216,8 @@ double solidAngle(double yShift, double zShift, double x){
     return sAngle/4.0;
 }
 
-double geometricEfficiency_OMS(int OM_number, int source_number){
+double geometricEfficiency_OMS(int OM_number, int source_number)
+{
     //OM number to OM position
     std::array<double,3> OM_pos;
     OM_pos = OMnum_to_position(OM_number);
@@ -235,10 +238,11 @@ double geometricEfficiency_OMS(int OM_number, int source_number){
     return geometric_eff;
 }
 
-std::array<double, 260> geom_eff(){
+std::array<double, 260> geom_eff()
+{
     std::array<double, 260> total_efficiencies;
     //activities of sources as measured by Miro on July 1 2018
-    //
+    
     double activities[42] = {129.2, 127.9, 138.5, 125.8, 134.3, 128.4, 
                             129.5, 131.0, 125.0, 129.8, 124.7, 132.0, 
                             133.8, 126.6, 131.3, 130.1, 133.0, 122.8, 
@@ -247,11 +251,13 @@ std::array<double, 260> geom_eff(){
                             123.7, 131.1, 125.5, 130.7, 124.9, 132.2, 
                             131.4, 128.0, 137.3, 128.3, 136.3, 127.1};
     
-    for(int i = 0; i < 260; i++){
+    for(int i = 0; i < 260; i++)
+    {
         
         total_efficiencies[i] = 0;
         
-        for(int j = 0; j < 42; j++){
+        for(int j = 0; j < 42; j++)
+        {
             total_efficiencies[i] += activities[j]*geometricEfficiency_OMS(i, j);
             std::cout << "OM " << i << "src " << j << " srcact " << activities[j] << " geomeff " << geometricEfficiency_OMS(i, j) << std::endl;
         }
@@ -259,7 +265,8 @@ std::array<double, 260> geom_eff(){
     return total_efficiencies;
 }
 
-void total_eff() {
+void total_eff() 
+{
     // Settings
     bool total_vis = false;  // true = total histogram, false = 42 source histograms
     double mw_sizey = 256.0;
@@ -272,14 +279,16 @@ void total_eff() {
     TFile *outfile = new TFile("total_eff.root", "RECREATE");
 
     // TOTAL EFFICIENCY
-    if (total_vis) {
+    if (total_vis) 
+    {
         TH2D *hist = new TH2D("hist", "Total Efficiency",
                               nbinsx, -double(nbinsx)/2 * mw_sizey, double(nbinsx)/2 * mw_sizey,
                               nbinsy, -double(nbinsy)/2 * mw_sizez, double(nbinsy)/2 * mw_sizez);
 
         std::array<double, 260> total_eff = geom_eff();
 
-        for (int i = 0; i < 260; ++i) {
+        for (int i = 0; i < 260; ++i) 
+        {
             int y = i / 13;
             int z = i % 13;
             double a = weight * total_eff[i];
@@ -293,69 +302,75 @@ void total_eff() {
     }
 
     // SOURCE-WISE EFFICIENCIES
-    if (!total_vis) {
-  const int nOM = 260;
-const int nHists = 42;
+    if (!total_vis) 
+    {
+     	const int nOM = 260;
+     	const int nHists = 42;
 
-std::vector<TH2D*> hist(nHists);
-std::vector<double> x_pos(nOM, 0.0);
-std::vector<double> y_pos(nOM, 0.0);
-std::vector<double> x_source(nHists, 0.0);
-std::vector<double> y_source(nHists, 0.0);
+     	std::vector<TH2D*> hist(nHists);
+     	std::vector<double> x_pos(nOM, 0.0);
+     	std::vector<double> y_pos(nOM, 0.0);
+     	std::vector<double> x_source(nHists, 0.0);
+     	std::vector<double> y_source(nHists, 0.0);
 
-// === Collect OM positions (once) ===
-for (int j = 0; j < nOM; ++j) {
-    std::array<double, 3> pos = OMnum_to_position(j);
-    x_pos[j] = pos[1];  // Y
-    y_pos[j] = pos[2];  // Z
-}
+	// === Collect OM positions (once) ===
+     	for (int j = 0; j < nOM; ++j) 
+     	{
+      		std::array<double, 3> pos = OMnum_to_position(j);
+      		x_pos[j] = pos[1];  // Y
+      		y_pos[j] = pos[2];  // Z
+     	}
 
-// === Collect source positions (once) ===
-for (int i = 0; i < nHists; ++i) {
-    std::pair<double, double> positions_source = get_values_on_line("source_positions.txt.in", i);
-    x_source[i] = positions_source.first;
-    y_source[i] = positions_source.second;
-    std::cout << "Source " << i << ": x = " << x_source[i] << ", y = " << y_source[i] << std::endl;
-}
+	// === Collect source positions (once) ===
+    	for (int i = 0; i < nHists; ++i) 
+    	{
+    		std::pair<double, double> positions_source = get_values_on_line("source_positions.txt.in", i);
+    		x_source[i] = positions_source.first;
+    		y_source[i] = positions_source.second;
+    		std::cout << "Source " << i << ": x = " << x_source[i] << ", y = " << y_source[i] << std::endl;
+    	}
 
-// === Create and fill histograms ===
-for (int i = 0; i < nHists; ++i) {
-    hist[i] = new TH2D(Form("hist%d", i), Form("#varepsilon_{G} source %d", i),
+	// === Create and fill histograms ===
+	for (int i = 0; i < nHists; ++i) 
+	{
+    		hist[i] = new TH2D(Form("hist%d", i), Form("#varepsilon_{G} source %d", i),
                        nbinsx, -double(nbinsx)/2 * mw_sizey, double(nbinsx)/2 * mw_sizey,
                        nbinsy, -double(nbinsy)/2 * mw_sizez, double(nbinsy)/2 * mw_sizez);
 
-    double threshold = 0.0001;
+    		double threshold = 0.0001;
 
-    for (int j = 0; j < nOM; ++j) {
-        int y = j / 13;
-        int z = j % 13;
+    		for (int j = 0; j < nOM; ++j) 
+    		{
+        		int y = j / 13;
+        		int z = j % 13;
 
-        double a = geometricEfficiency_OMS(j, i);
-        if (a > threshold) {
-            hist[i]->SetBinContent(y + 1, z + 1, a);
-        }
-    }
+        		double a = geometricEfficiency_OMS(j, i);
+        		if (a > threshold) 
+        		{
+                		hist[i]->SetBinContent(y + 1, z + 1, a);
+                	}
+        	}	
 
-    hist[i]->GetXaxis()->SetTitle("y [mm]");
-    hist[i]->GetYaxis()->SetTitle("z [mm]");
-    hist[i]->Write();
-}
+    		hist[i]->GetXaxis()->SetTitle("y [mm]");
+    		hist[i]->GetYaxis()->SetTitle("z [mm]");
+    		hist[i]->Write();
+	}
 
-// === Save OM positions to file ===
-std::ofstream om_out("om_positions.txt");
-for (int i = 0; i < nOM; i++) {
-    om_out << i << " " << x_pos[i] << " " << y_pos[i] << "\n";
-}
-om_out.close();
+	// === Save OM positions to file ===
+	std::ofstream om_out("om_positions.txt");
+	for (int i = 0; i < nOM; i++)
+	{
+        	om_out << i << " " << x_pos[i] << " " << y_pos[i] << "\n";
+	}
+	om_out.close();
 
-// === Save source positions to file ===
-std::ofstream src_out("source_positions.txt");
-for (int i = 0; i < nHists; i++) {
-    src_out << i << " " << x_source[i] << " " << y_source[i] << "\n";
-}
-src_out.close();
-
-    }
-
-    outfile->Close();
+	// === Save source positions to file ===
+	std::ofstream src_out("source_positions.txt");
+	for (int i = 0; i < nHists; i++) 
+	{
+        	src_out << i << " " << x_source[i] << " " << y_source[i] << "\n";
+	}
+	src_out.close();
+	}
+	outfile->Close();
 }

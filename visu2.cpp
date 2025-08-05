@@ -11,6 +11,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+
 std::vector<std::pair<double, double>> read_positions_from_file(const std::string& filename) {
     std::vector<std::pair<double, double>> positions;
     std::ifstream infile(filename);
@@ -22,7 +23,6 @@ std::vector<std::pair<double, double>> read_positions_from_file(const std::strin
         double x, y;
 
         if (!(ss >> index_str >> x >> y)) {
-            // Skip lines that don't parse properly
             continue;
         }
 
@@ -42,9 +42,7 @@ std::vector<double> read_activities(const std::string& filename) {
         std::string token;
         double activity;
 
-        // Skip first value (source index)
         std::getline(ss, token, ';');
-
         if (std::getline(ss, token)) {
             activity = std::stod(token);
             activities.push_back(activity);
@@ -59,6 +57,8 @@ void visu2() {
     const int nOMs = 260;
     const int nbinsx = 20;
     const int nbinsy = 13;
+    double mw_sizey = 256.0;
+    double mw_sizez = 256.0;
 
     double rl = 0.09, rr = 0.35, rt = 0.1, rb = 0.1;
     double px = 1000;
@@ -105,11 +105,10 @@ void visu2() {
         hist->GetYaxis()->SetTitle("z [mm]");
         hist->Draw("COLZ");
 
-        // Plot the source as green square
         double x = src_pos[i].first;
         double y = src_pos[i].second;
         TGraph* src_graph = new TGraph(1, &x, &y);
-        src_graph->SetMarkerStyle(20);  // square
+        src_graph->SetMarkerStyle(20);
         src_graph->SetMarkerSize(1.2);
         src_graph->SetMarkerColor(kGreen + 2);
         src_graph->Draw("P same");
@@ -118,7 +117,7 @@ void visu2() {
         delete c;
     }
 
-    // === Plot source & OM positions ===
+    // === Plot source & OM positions with labels ===
     TCanvas* c_map = new TCanvas("c_map", "Source & OM positions", px, py);
     c_map->SetLeftMargin(rl);
     c_map->SetTopMargin(rt);
@@ -127,26 +126,45 @@ void visu2() {
     c_map->cd();
 
     TH2D* dummy = new TH2D("dummy", "Source and OM Positions",
-                           nbinsx, -2560, 2560, nbinsy, -1664, 1664);
+                           nbinsx, -double(nbinsx)/2*mw_sizey, double(nbinsx)/2*mw_sizey, nbinsy, -double(nbinsy)/2*mw_sizey, double(nbinsy)/2*mw_sizey);
     dummy->GetXaxis()->SetTitle("y [mm]");
     dummy->GetYaxis()->SetTitle("z [mm]");
     dummy->Draw();
 
-    for (const auto& [x, y] : src_pos) {
+    // Sources: green markers with labels
+    for (int i = 0; i < nSources; ++i) {
+        double x = src_pos[i].first;
+        double y = src_pos[i].second;
+
         TGraph* src_g = new TGraph(1, &x, &y);
         src_g->SetMarkerStyle(20);
         src_g->SetMarkerSize(1.0);
         src_g->SetMarkerColor(kGreen + 2);
         src_g->Draw("P same");
+
+        TLatex* label = new TLatex(x + 50, y + 50, Form("%d", i));
+        label->SetTextSize(0.025);
+        label->SetTextColor(kGreen + 3);
+        label->Draw("same");
     }
 
+   double bin_width_x = (2560.0 * 2) / nbinsx;  // 2560 is half-range
+      double bin_width_y = (1664.0 * 2) / nbinsy;
+    // OMs: red boxes with labels
     for (int i = 0; i < nOMs; ++i) {
         double x = om_pos[i].first;
         double y = om_pos[i].second;
-        TBox* box = new TBox(x - 128, y - 128, x + 128, y + 128);
+
+TBox* box = new TBox(x - bin_width_x / 2, y - bin_width_y / 2,
+                     x + bin_width_x / 2, y + bin_width_y / 2);
         box->SetLineColor(kRed);
         box->SetFillStyle(0);
         box->Draw("same");
+
+        TLatex* label = new TLatex(x - 100, y - 100, Form("%d", i));
+        label->SetTextSize(0.02);
+        label->SetTextColor(kRed + 1);
+        label->Draw("same");
     }
 
     c_map->SaveAs("plots/source_OM_map.png");
@@ -175,11 +193,14 @@ void visu2() {
 
         weighted_sum->GetXaxis()->SetTitle("y [mm]");
         weighted_sum->GetYaxis()->SetTitle("z [mm]");
+        weighted_sum->SetTitle("eps_G summed OM by OM and weighted by the activities of the sources");
         weighted_sum->Draw("COLZ");
 
         c_sum->SaveAs("plots/eps_G_weighted_sum.png");
         delete c_sum;
     }
+    weighted_sum->SetStats(false);        // Removes stats box (not legend)
+
 
     file->Close();
 }
