@@ -38,6 +38,13 @@ const double THR = 0.0001;
 const double XH = double(NBX)/2 * SY;
 const double YH = double(NBY)/2 * SZ;
 
+std::array<double,3> OMnum_to_position(int OM_num);
+double centerSolidAngle(double a, double b, double z);
+double solidAngle(double yShift, double zShift, double x);
+double geometricEfficiency_OMS(int OM_number, int source_number);
+std::array<double, 260> geom_eff();
+std::pair<double, double> get_values_on_line(const std::string& filename, int target_line);
+
 void total_eff() 
 {
     // Settings
