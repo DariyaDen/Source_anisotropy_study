@@ -1,0 +1,19 @@
+yShift and zShift - a relative position of bottom left corner of the rectangle relatively to the origin of corrdinates:
+
+double sAngle =  centerSolidAngle(2.0*(YL+yShift),2.0*(ZL+zShift),x)
+        -centerSolidAngle(2.0*(yShift),2.0*(ZL+zShift),x)
+        -centerSolidAngle(2.0*(YL+yShift),2.0*(zShift),x)
+        +centerSolidAngle(2.0*(yShift),2.0*(zShift),x);
+
+....
+yshift = yShift + YL/2;
+zshift = zShift + ZL/2;
+....
+
+
+
+double sAngle =
+centerSolidAngle(2yshift+YL,2zshift+ZL,x)-
+centerSolidAngle(2.0*yshift-YL,ZL+2.0*zshift,x)-
+centerSolidAngle(YL+2.0*yshift,2.0*zshift-ZL,x)+
+centerSolidAngle(2.0*yshift-YL,2.0*zshift-ZL,x);

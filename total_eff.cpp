@@ -283,7 +283,8 @@ double solidAngle(double yShift, double zShift, double x)
         -centerSolidAngle(2.0*(yShift),2.0*(ZL+zShift),x)
         -centerSolidAngle(2.0*(YL+yShift),2.0*(zShift),x)
         +centerSolidAngle(2.0*(yShift),2.0*(zShift),x);
-    
+        
+    // double sAngle = centerSolidAngle(2yshift+YL,2zshift+ZL,x)-centerSolidAngle(2.0*yshift-YL,ZL+2.0*zshift,x)-centerSolidAngle(YL+2.0*yshift,2.0*zshift-ZL,x)+centerSolidAngle(2.0*yshift-YL,2.0*zshift-ZL,x);
     return sAngle/4.0;
 }
 
@@ -338,7 +339,6 @@ std::array<double, 260> geom_eff()
 
 //reads values of source positions from .txt.in file
 std::pair<double, double> get_values_on_line(const std::string& filename, int target_line) 
-
 {
     std::ifstream infile(filename);
     if (!infile) 
