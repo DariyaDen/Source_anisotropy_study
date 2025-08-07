@@ -20,57 +20,121 @@ using namespace std;
 
 //OM dimensions in mm (from TKEvent) (not all of these are used)
 //const double mw_sizex = 194.0;
-const double mw_sizey = 256.0;
-const double mw_sizez = 256.0;
-const double yLength = 256.0;
-const double zLength = 256.0;
+const double SY = 256.0;
+const double SZ = 256.0;
+const double YL = 256.0;
+const double ZL = 256.0;
 
 //z distance between Bismuth sources and OMs
-const double x0 = 435.0;
+const double X0 = 435.0;
 
-//reads values of source positions from .txt.in file
-std::pair<double, double> get_values_on_line(const std::string& filename, int target_line) 
+const int NOM = 260;
+const int NH = 42;
+const int W = 1;
+const int NBX = 20;
+const int NBY = 13;
+
+const double THR = 0.0001;
+const double XH = double(NBX)/2 * SY;
+const double YH = double(NBY)/2 * SZ;
+
+void total_eff() 
 {
-    std::ifstream infile(filename);
-    if (!infile) 
-    {
-        throw std::runtime_error("Could not open file: " + filename);
-    }
+    // Settings
+    bool total_vis = false;  // true = total histogram, false = 42 source histograms
 
-    std::string line;
-    int current_line = 0; //zero-based indexing 
+    // Output ROOT file
+    TFile *outfile = new TFile("total_eff.root", "RECREATE");
 
-    while (std::getline(infile, line)) 
+    // TOTAL EFFICIENCY
+    if (total_vis) 
     {
-        if (current_line == target_line) 
+        TH2D *hist = new TH2D("hist", "Total Efficiency", NBX, -XH, XH, NBY, -YH, YH);
+
+        std::array<double, 260> total_eff = geom_eff();
+
+        for (int i = 0; i < 260; ++i) 
         {
-            std::istringstream ss(line);
-            std::string token;
-            double val1, val2;
-
-            if (std::getline(ss, token, ';')) 
-            {
-                val1 = std::stod(token);
-            } else 
-            {
-                throw std::runtime_error("Missing first value on line " + std::to_string(target_line));
-            }
-
-            if (std::getline(ss, token)) 
-            {
-                val2 = std::stod(token);
-            } else 
-            {
-                throw std::runtime_error("Missing second value on line " + std::to_string(target_line));
-            }
-
-            return {val1, val2};
+            int y = i / 13;
+            int z = i % 13;
+            double a = W * total_eff[i];
+            hist->SetBinContent(y + 1, z + 1, a);
         }
-        ++current_line;
+
+        hist->GetXaxis()->SetTitle("y [mm]");
+        hist->GetYaxis()->SetTitle("z [mm]");
+        hist->GetZaxis()->SetTitle("#varepsilon_{g}");
+        hist->Write();
     }
 
-    throw std::out_of_range("Line number " + std::to_string(target_line) + " exceeds file length");
+    // SOURCE-WISE EFFICIENCIES
+    if (!total_vis) 
+    {
+
+     	std::vector<TH2D*> hist(NH);
+     	std::vector<double> x_pos(NOM, 0.0);
+     	std::vector<double> y_pos(NOM, 0.0);
+     	std::vector<double> x_source(NH, 0.0);
+     	std::vector<double> y_source(NH, 0.0);
+
+	// === Collect OM positions (once) ===
+     	for (int j = 0; j < NOM; ++j) 
+     	{
+      		std::array<double, 3> pos = OMnum_to_position(j);
+      		x_pos[j] = pos[1];  // Y
+      		y_pos[j] = pos[2];  // Z
+     	}
+
+	// === Collect source positions (once) ===
+    	for (int i = 0; i < NH; ++i) 
+    	{
+    		std::pair<double, double> positions_source = get_values_on_line("source_positions.txt.in", i);
+    		x_source[i] = positions_source.first;
+    		y_source[i] = positions_source.second;
+    		std::cout << "Source " << i << ": x = " << x_source[i] << ", y = " << y_source[i] << std::endl;
+    	}
+
+	// === Create and fill histograms ===
+	for (int i = 0; i < NH; ++i) 
+	{
+    		hist[i] = new TH2D(Form("hist%d", i), Form("#varepsilon_{G} source %d", i), NBX, -XH, XH, NBY, -YH, YH);
+
+    		for (int j = 0; j < NOM; ++j) 
+    		{
+        		int y = j / 13;
+        		int z = j % 13;
+
+        		double a = geometricEfficiency_OMS(j, i);
+        		if (a > THR) 
+        		{
+                		hist[i]->SetBinContent(y + 1, z + 1, a);
+                	}
+        	}	
+
+    		hist[i]->GetXaxis()->SetTitle("y [mm]");
+    		hist[i]->GetYaxis()->SetTitle("z [mm]");
+    		hist[i]->Write();
+    		}
+
+	// === Save OM positions to file ===
+	std::ofstream om_out("om_positions.txt");
+	for (int i = 0; i < NOM; i++)
+	{
+        	om_out << i << " " << x_pos[i] << " " << y_pos[i] << "\n";
+	}
+	om_out.close();
+
+	// === Save source positions to file ===
+	std::ofstream src_out("source_positions.txt");
+	for (int i = 0; i < NH; i++) 
+	{
+        	src_out << i << " " << x_source[i] << " " << y_source[i] << "\n";
+	}
+	src_out.close();
+	}
+	outfile->Close();
 }
+
 
 //turns OM_number to OM positions
 std::array<double,3> OMnum_to_position(int OM_num)
@@ -208,9 +272,9 @@ double centerSolidAngle(double a, double b, double z)
 
 double solidAngle(double yShift, double zShift, double x)
 {
-    double sAngle =  centerSolidAngle(2.0*(yLength+yShift),2.0*(zLength+zShift),x)
-        -centerSolidAngle(2.0*(yShift),2.0*(zLength+zShift),x)
-        -centerSolidAngle(2.0*(yLength+yShift),2.0*(zShift),x)
+    double sAngle =  centerSolidAngle(2.0*(YL+yShift),2.0*(ZL+zShift),x)
+        -centerSolidAngle(2.0*(yShift),2.0*(ZL+zShift),x)
+        -centerSolidAngle(2.0*(YL+yShift),2.0*(zShift),x)
         +centerSolidAngle(2.0*(yShift),2.0*(zShift),x);
     
     return sAngle/4.0;
@@ -223,8 +287,8 @@ double geometricEfficiency_OMS(int OM_number, int source_number)
     OM_pos = OMnum_to_position(OM_number);
     
     //bottom left corner positions
-    double blc_y = OM_pos[1]-mw_sizey/2.0;
-    double blc_z = OM_pos[2]-mw_sizez/2.0;
+    double blc_y = OM_pos[1]-SY/2.0;
+    double blc_z = OM_pos[2]-SZ/2.0;
     
     //Source number to source position (source_number: 0-41)
     std::pair<double, double> positions = get_values_on_line("source_positions.txt.in", source_number);
@@ -233,7 +297,7 @@ double geometricEfficiency_OMS(int OM_number, int source_number)
     double yShift = blc_y-positions.first;
     double zShift = blc_z-positions.second;
 
-    double geometric_eff = solidAngle(yShift, zShift, x0)/(4.0*M_PI);
+    double geometric_eff = solidAngle(yShift, zShift, X0)/(4.0*M_PI);
 
     return geometric_eff;
 }
@@ -265,112 +329,47 @@ std::array<double, 260> geom_eff()
     return total_efficiencies;
 }
 
-void total_eff() 
+//reads values of source positions from .txt.in file
+std::pair<double, double> get_values_on_line(const std::string& filename, int target_line) 
+
 {
-    // Settings
-    bool total_vis = false;  // true = total histogram, false = 42 source histograms
-    double mw_sizey = 256.0;
-    double mw_sizez = 256.0;
-    int weight = 1;
-    int nbinsx = 20;
-    int nbinsy = 13;
-
-    // Output ROOT file
-    TFile *outfile = new TFile("total_eff.root", "RECREATE");
-
-    // TOTAL EFFICIENCY
-    if (total_vis) 
+    std::ifstream infile(filename);
+    if (!infile) 
     {
-        TH2D *hist = new TH2D("hist", "Total Efficiency",
-                              nbinsx, -double(nbinsx)/2 * mw_sizey, double(nbinsx)/2 * mw_sizey,
-                              nbinsy, -double(nbinsy)/2 * mw_sizez, double(nbinsy)/2 * mw_sizez);
-
-        std::array<double, 260> total_eff = geom_eff();
-
-        for (int i = 0; i < 260; ++i) 
-        {
-            int y = i / 13;
-            int z = i % 13;
-            double a = weight * total_eff[i];
-            hist->SetBinContent(y + 1, z + 1, a);
-        }
-
-        hist->GetXaxis()->SetTitle("y [mm]");
-        hist->GetYaxis()->SetTitle("z [mm]");
-        hist->GetZaxis()->SetTitle("#varepsilon_{g}");
-        hist->Write();
+        throw std::runtime_error("Could not open file: " + filename);
     }
 
-    // SOURCE-WISE EFFICIENCIES
-    if (!total_vis) 
+    std::string line;
+    int current_line = 0; //zero-based indexing 
+
+    while (std::getline(infile, line)) 
     {
-     	const int nOM = 260;
-     	const int nHists = 42;
+        if (current_line == target_line) 
+        {
+            std::istringstream ss(line);
+            std::string token;
+            double val1, val2;
 
-     	std::vector<TH2D*> hist(nHists);
-     	std::vector<double> x_pos(nOM, 0.0);
-     	std::vector<double> y_pos(nOM, 0.0);
-     	std::vector<double> x_source(nHists, 0.0);
-     	std::vector<double> y_source(nHists, 0.0);
+            if (std::getline(ss, token, ';')) 
+            {
+                val1 = std::stod(token);
+            } else 
+            {
+                throw std::runtime_error("Missing first value on line " + std::to_string(target_line));
+            }
 
-	// === Collect OM positions (once) ===
-     	for (int j = 0; j < nOM; ++j) 
-     	{
-      		std::array<double, 3> pos = OMnum_to_position(j);
-      		x_pos[j] = pos[1];  // Y
-      		y_pos[j] = pos[2];  // Z
-     	}
+            if (std::getline(ss, token)) 
+            {
+                val2 = std::stod(token);
+            } else 
+            {
+                throw std::runtime_error("Missing second value on line " + std::to_string(target_line));
+            }
 
-	// === Collect source positions (once) ===
-    	for (int i = 0; i < nHists; ++i) 
-    	{
-    		std::pair<double, double> positions_source = get_values_on_line("source_positions.txt.in", i);
-    		x_source[i] = positions_source.first;
-    		y_source[i] = positions_source.second;
-    		std::cout << "Source " << i << ": x = " << x_source[i] << ", y = " << y_source[i] << std::endl;
-    	}
+            return {val1, val2};
+        }
+        ++current_line;
+    }
 
-	// === Create and fill histograms ===
-	for (int i = 0; i < nHists; ++i) 
-	{
-    		hist[i] = new TH2D(Form("hist%d", i), Form("#varepsilon_{G} source %d", i),
-                       nbinsx, -double(nbinsx)/2 * mw_sizey, double(nbinsx)/2 * mw_sizey,
-                       nbinsy, -double(nbinsy)/2 * mw_sizez, double(nbinsy)/2 * mw_sizez);
-
-    		double threshold = 0.0001;
-
-    		for (int j = 0; j < nOM; ++j) 
-    		{
-        		int y = j / 13;
-        		int z = j % 13;
-
-        		double a = geometricEfficiency_OMS(j, i);
-        		if (a > threshold) 
-        		{
-                		hist[i]->SetBinContent(y + 1, z + 1, a);
-                	}
-        	}	
-
-    		hist[i]->GetXaxis()->SetTitle("y [mm]");
-    		hist[i]->GetYaxis()->SetTitle("z [mm]");
-    		hist[i]->Write();
-	}
-
-	// === Save OM positions to file ===
-	std::ofstream om_out("om_positions.txt");
-	for (int i = 0; i < nOM; i++)
-	{
-        	om_out << i << " " << x_pos[i] << " " << y_pos[i] << "\n";
-	}
-	om_out.close();
-
-	// === Save source positions to file ===
-	std::ofstream src_out("source_positions.txt");
-	for (int i = 0; i < nHists; i++) 
-	{
-        	src_out << i << " " << x_source[i] << " " << y_source[i] << "\n";
-	}
-	src_out.close();
-	}
-	outfile->Close();
+    throw std::out_of_range("Line number " + std::to_string(target_line) + " exceeds file length");
 }
