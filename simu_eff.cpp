@@ -1,23 +1,69 @@
-#include <TParameter.h>
-#include <TKey.h>
 #include <TFile.h>
-#include <TTree.h>
-#include <TH2F.h>
-#include <TSystem.h>
-#include <TROOT.h>
-#include <array>
+#include <TTreeReader.h>
+#include <TTreeReaderValue.h>
+#include <TH2D.h>
+#include <iostream>
+#include <fstream>
 #include <vector>
 #include <string>
-#include <iostream>
+#include <array>
+#include <unordered_map>
 
 #include "/sps/nemo/scratch/ddenysenko/GE/MiModule/include/MiEvent.h"
-#include "/sps/nemo/scratch/ddenysenko/GE/MiModule/include/MiVertex.h"
-#include "/sps/nemo/scratch/ddenysenko/GE/MiModule/include/MiVector3D.h"
-#include "/sps/nemo/scratch/ddenysenko/GE/MiModule/include/MiPTD.h"
+#include "/sps/nemo/scratch/ddenysenko/GE/MiModule/include/MiCD.h"
+#include "/sps/nemo/scratch/ddenysenko/GE/MiModule/include/MiCDCaloHit.h"
+#include "/sps/nemo/scratch/ddenysenko/GE/MiModule/include/MiGID.h"
 
 R__LOAD_LIBRARY(/sps/nemo/scratch/ddenysenko/GE/MiModule/lib/libMiModule.so);
 
-//turns OM_number to OM positions
+const int N_sources = 42;
+const int N_OMs = 260;
+
+const int NBX = 20;
+const int NBY = 13;
+const double SY = 256.0;
+const double SZ = 256.0;
+const double XH = NBX/2.0 * SY;
+const double YH = NBY/2.0 * SZ;
+
+int safe_stoi(const std::string& s, int def=-1) {
+    try {
+        if (s.empty()) {
+    return def;
+} else {
+    return std::stoi(s);
+}
+
+    } catch (...) {
+        return def;
+    }
+}
+
+// ----------------- OM mapping -----------------
+int SWCR_to_OMnum(const std::string &type, int side, int wall, int column, int row) {
+    if (type == "1302") return (side==0) ? column*13 + row : 260 + column*13 + row;
+    if (type == "1232") return (side==0) ? 520 + wall*32 + column*16 + row : 584 + wall*32 + column*16 + row;
+    if (type == "1252") return (side==0) ? 648 + wall*16 + row : 680 + wall*16 + row;
+    return -1;
+}
+
+// Precompute source positions
+std::vector<std::pair<double,double>> read_sources(const std::string &filename, int NH) 
+{
+    std::ifstream infile(filename);
+    std::vector<std::pair<double,double>> sources(NH, {0.0,0.0});
+    if (!infile) throw std::runtime_error("Cannot open " + filename);
+    std::string line;
+    for(int i=0; i<NH && std::getline(infile,line); ++i) {
+        std::replace(line.begin(), line.end(), ';', ' ');
+        std::istringstream ss(line);
+        double x, y; ss >> x >> y;
+        sources[i] = {x, y};
+    }
+    return sources;
+}
+
+// Precompute OM positions
 std::array<double,3> OMnum_to_position(int OM_num)
 {
     array<double,4> SWCR;
@@ -70,6 +116,7 @@ std::array<double,3> OMnum_to_position(int OM_num)
 		SWCR[2] = (OM_num - 520 - 128 - 32) % 16;
 		SWCR[3] = -1;
 	}
+	
 	int OM_type;
 	
 	if(OM_num < 520)
@@ -103,7 +150,7 @@ std::array<double,3> OMnum_to_position(int OM_num)
 			else
 				xyz[1] = -2580.5;
 				
-			if(SWCR[0] == 1)
+				if(SWCR[0] == 1)
 			{
 				if(SWCR[2] == 1)
 					xyz[0] = 333.0;
@@ -122,7 +169,8 @@ std::array<double,3> OMnum_to_position(int OM_num)
 			xyz[2] = ((double)SWCR[3] - 7.5) * 212.0;
 			
 			break;
-			case 1252: //GV
+			
+		case 1252: //GV
 			if(SWCR[0] == 1)
 				xyz[0] = 213.5;
 			else
@@ -141,113 +189,152 @@ std::array<double,3> OMnum_to_position(int OM_num)
     return xyz;
 }
 
-void simu_eff(int startDir, int endDir)
-{
-    const int N_OMs = 712;
-    const int N_sources = 42;
-    Long64_t totalEntries = 0;
+// ----------------- count before -----------------
+void count_root_before(const std::string &rootfile, int N_before[N_sources]) {
+    std::fill(N_before, N_before+N_sources, 0);
 
-    // Output TTrees
-    TFile* f_out = new TFile("simu_eff.root","RECREATE");
+    TFile* f = TFile::Open(rootfile.c_str(),"READ");
+    if(!f || f->IsZombie()) return;
 
-    // Ensure TTrees are created in the file's directory
-    f_out->cd();
+    TTreeReader reader("Event", f);
+    while(reader.Next()) {
+        static int ie = 0;
+        int srcID = ie % N_sources;
+        ++N_before[srcID];
+        ++ie;
+    }
+    f->Close();
+}
 
-    // Event -> Source -> Vertex
-    TTree* t_source = new TTree("EventSource","Event with Source and Vertex info");
-    int eventID, sourceID;
-    double vertX, vertY, vertZ;
-    t_source->Branch("eventID",&eventID,"eventID/I");
-    t_source->Branch("sourceID",&sourceID,"sourceID/I");
-    t_source->Branch("vertX",&vertX,"vertX/D");
-    t_source->Branch("vertY",&vertY,"vertY/D");
-    t_source->Branch("vertZ",&vertZ,"vertZ/D");
+// ----------------- count after -----------------
+void count_root_after(const std::string &rootfile, int N_after[N_sources][N_OMs]) {
+    for(int i=0;i<N_sources;++i)
+        std::fill(N_after[i], N_after[i]+N_OMs, 0);
 
-    // Event -> OM -> Vertex
-    TTree* t_OM = new TTree("EventOM","Event with OM and Vertex info");
-    int OM_ID;
-    double OMX, OMY, OMZ;
-    t_OM->Branch("eventID",&eventID,"eventID/I");
-    t_OM->Branch("OM_ID",&OM_ID,"OM_ID/I");
-    t_OM->Branch("vertX",&vertX,"vertX/D");
-    t_OM->Branch("vertY",&vertY,"vertY/D");
-    t_OM->Branch("vertZ",&vertZ,"vertZ/D");
-    t_OM->Branch("OMX",&OMX,"OMX/D");
-    t_OM->Branch("OMY",&OMY,"OMY/D");
-    t_OM->Branch("OMZ",&OMZ,"OMZ/D");
+    TFile* f = TFile::Open(rootfile.c_str(),"READ");
+    if(!f || f->IsZombie()) return;
 
-    for (int i=startDir; i<=endDir; ++i)
-    {
-        std::string fname = "DATA/" + std::to_string(i) + "/Default.root";
-        std::cout << "Opening: " << fname << std::endl;
+    TTreeReader reader("Event", f);
+    TTreeReaderValue<MiEvent> event(reader, "Eventdata");
 
-        TFile* f = TFile::Open(fname.c_str(),"READ");
-        if(!f || f->IsZombie()) { std::cerr<<"Cannot open "<<fname<<std::endl; continue; }
+    long long ie = 0;
+    while(reader.Next()) {
+        MiEvent* Eve = &*event;
+        int srcID = ie % N_sources;
+        ++ie;
 
-        TTree* t = (TTree*)f->Get("Event");
-        if(!t) { std::cerr<<"No tree named Event in "<<fname<<std::endl; f->Close(); continue; }
+        MiCD* cd = Eve->getCD();
+        if(!cd) continue;
+        int nCalo = cd->getnoofcaloh();
 
-        MiEvent* Eve = new MiEvent();
-        t->SetBranchAddress("Eventdata",&Eve);
+        for(int ih=0; ih<nCalo; ++ih){
+    MiCDCaloHit* hit = cd->getcalohit(ih);
+    if(!hit) continue;
+    MiGID* gid = hit->getGID();
+    if(!gid) continue;
 
-        Long64_t nEntries = t->GetEntries();
-        std::cout<<"Events in this file: "<<nEntries<<std::endl;
-        totalEntries += nEntries;
+    std::string type = gid->gettype();
+    int side   = safe_stoi(gid->getside());
+    int wall   = safe_stoi(gid->getwall());
+    int column = safe_stoi(gid->getcolumn());
+    int row    = safe_stoi(gid->getrow());
 
-        for(Long64_t ie=0; ie<nEntries; ie++)
-        {
-            t->GetEntry(ie);
-            eventID = ie;
-
-            // Event -> Source -> Vertex
-            for(int iSource=0;iSource<N_sources;iSource++)
-            {
-                int nPart = Eve->getPTDNoPart();
-                for(int ip=0; ip<nPart; ip++)
-                {
-                    int nVert = Eve->getPTDNoVert(ip);
-                    for(int iv=0; iv<nVert; iv++)
-                    {
-                        vertX = Eve->getPTDverX(ip,iv);
-                        vertY = Eve->getPTDverY(ip,iv);
-                        vertZ = Eve->getPTDverZ(ip,iv);
-                        sourceID = iSource;
-                        t_source->Fill();
-                    }
-                }
-            }
-
-            // Event -> OM -> Vertex
-            for(int jOM=0;jOM<N_OMs;jOM++)
-            {
-                std::array<double,3> OMpos = OMnum_to_position(jOM);
-                OMX = OMpos[0]; OMY = OMpos[1]; OMZ = OMpos[2];
-                OM_ID = jOM;
-
-                int nPart = Eve->getPTDNoPart();
-                for(int ip=0; ip<nPart; ip++)
-                {
-                    int nVert = Eve->getPTDNoVert(ip);
-                    for(int iv=0; iv<nVert; iv++)
-                    {
-                        vertX = Eve->getPTDverX(ip,iv);
-                        vertY = Eve->getPTDverY(ip,iv);
-                        vertZ = Eve->getPTDverZ(ip,iv);
-                        t_OM->Fill();
-                    }
-                }
-            }
-        }
-
-        f->Close();
+    // Debug print only, don’t skip
+    if (side < 0 || wall < -1 || column < 0 || row < -2) {
+        std::cerr << "⚠️ Strange GID at event " << ie
+                  << " srcID=" << srcID
+                  << " type=" << type
+                  << " side='" << gid->getside() << "'"
+                  << " wall='" << gid->getwall() << "'"
+                  << " col='" << gid->getcolumn() << "'"
+                  << " row='" << gid->getrow() << "'"
+                  << std::endl;
     }
 
-    std::cout<<"Total events processed: "<<totalEntries<<std::endl;
+    // Always try mapping
+            int omID = SWCR_to_OMnum(type, side, wall, column, row);
+    if(omID >= 0 && omID < N_OMs) {
+        N_after[srcID][omID]++;
+    }
+}
 
-    // Write trees to output file
-    f_out->cd();
-    t_source->Write();
-    t_OM->Write();
-    f_out->Close();
+
+    }
+
+    f->Close();
+}
+
+// ----------------- main macro -----------------
+void simu_eff(int startDir, int endDir){
+    int N_before[N_sources] = {0};
+    int N_after[N_sources][N_OMs] = {{0}};
+
+    for(int i=startDir; i<=endDir; ++i){
+        std::cout << "Processing directory " << i << std::endl;
+        count_root_before("DATA/"+std::to_string(i)+"/0cut/Default.root", N_before);
+        count_root_after("DATA/"+std::to_string(i)+"/Default.root", N_after);
+    }
+
+    // Precompute positions
+    std::vector<std::array<double,3>> OM_positions(N_OMs);
+    for(int j=0;j<N_OMs;j++) OM_positions[j] = OMnum_to_position(j);
+
+    auto source_positions = read_sources("source_positions.txt.in", N_sources);
+
+    // Write efficiency histograms
+    TFile* fout = new TFile("simu_eff.root","RECREATE");
+    
+    
+    for (int k=0; k<N_sources; k++) {
+    TH2D* hist = new TH2D(Form("hist%d",k),
+                          Form("Efficiency source %d",k),
+                          NBX, -XH, XH,   // X axis: -2560 .. +2560
+                          NBY, -YH, YH);  // Y axis: -1664 .. +1664
+
+    for (int j=0; j<N_OMs; j++) {
+    double eff;
+if (N_before[k] > 0) {
+    eff = double(N_after[k][j]) / N_before[k];
+} else {
+    eff = 0.0;
+    std::cout<<"Here is a mistake";
+}
+        // Use detector coordinates
+        double x = OM_positions[j][1];  // Y coordinate of OM
+        double y = OM_positions[j][2];  // Z coordinate of OM
+
+        // Fill histogram with efficiency weight
+        hist->Fill(x, y, eff);
+    }
+
+    hist->Write();
+}
+
+ /*  for(int k=0;k<N_sources;k++){
+        TH2D* hist = new TH2D(Form("hist%d",k),
+                              Form("Efficiency source %d",k),
+                              NBX, -XH, XH, NBY, -YH, YH);
+
+      //  for(int i=0;i<N_sources;i++){
+      for (int j=0; j<N_OMs; j++) {
+    int xbin = j / NBY;
+    int ybin = j % NBY;
+    double eff = (N_before[k] > 0) ? double(N_after[k][j]) / N_before[k] : 0.0;
+    std::cout << N_before[k] << " " << eff << std::endl;
+    if (xbin < NBX && ybin < NBY) {
+        hist->SetBinContent(xbin+1, ybin+1, eff);
+    }
+}
+/*
+        for(int j=0;j<N_OMs;j++){
+            int ybin=j/NBY;
+            int zbin=j%NBY;
+            double eff = (N_before[k]>0) ? double(N_after[k][j])/N_before[k] : 0.0;
+            std::cout<<N_before[k]<<" "<<eff<<endl;
+            hist->SetBinContent(ybin+1, zbin+1, eff);
+        } */ // }
+    //    hist->Write();
+  //  } 
+    fout->Close();
 }
 

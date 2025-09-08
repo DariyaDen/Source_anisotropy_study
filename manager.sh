@@ -13,17 +13,19 @@ for ((num=first_val; num<=second_val; num++))
 do 
 	mkdir -p "$num"
 	cd $num
+	mkdir -p 0cut
+	cd 0cut
 	
-	cp ../../simu.profile simu.profile
-	cp ../../reco.conf reco.conf
-	cp ../../pipeline.conf pipeline.conf
-	cp ../../SNCutsAndMiModule.conf SNCutsAndMiModule.conf
-	cp ../../simu_setup.conf simu_setup.conf
+	cp ../../../simu.profile simu.profile
+	cp ../../../reco.conf reco.conf
+	cp ../../../pipeline.conf pipeline.conf
+	cp ../../../SNCutsAndMiModule.conf SNCutsAndMiModule.conf
+	cp ../../../simu_setup.conf simu_setup.conf
 		
 		sbatch \
-		--output="${DATA_DIR}/DATA/$num/slurm-%j.out" \
-		../../"$name_of_script" "$num"
-	cd ..	
+		--output="${DATA_DIR}/DATA/$num/0cut/slurm-%j.out" \
+		../../../"$name_of_script" "$num"
+	cd ../..	
 	
 done
 

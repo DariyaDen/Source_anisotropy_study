@@ -4,7 +4,7 @@
 #SBATCH --job-name=newcuts
 #SBATCH --mem=3000M
 #SBATCH --licenses=sps
-#SBATCH --time=1:30:00
+#SBATCH --time=3:30:00
 #SBATCH --cpus-per-task=1
 
 source ${THRONG_DIR}/config/supernemo_profile.bash  
@@ -15,13 +15,13 @@ MY_DIR=/sps/nemo/scratch/ddenysenko/GE/kink-track-study---Oleksandra/Bi-207
 
 num=$1
 
-${FAL_DIR}/flreconstruct \
-  -i ${MY_DIR}/DATA/$num/CM_reco_Bi_$num.brio \
-  -p ${MY_DIR}/0cut.conf \
-  -o ${MY_DIR}/DATA/$num/Default0cuts.root
-
-# Run reconstruction
 #${FAL_DIR}/flreconstruct \
 #  -i ${MY_DIR}/DATA/$num/CM_reco_Bi_$num.brio \
-#  -p ${MY_DIR}/SNCutsAndMiModule.conf \
-#  -o ${MY_DIR}/DATA/$num/reco_Bi_$num.brio
+#  -o ${MY_DIR}/DATA/$num/Default0cuts.root
+
+# Run reconstruction
+${FAL_DIR}/flreconstruct \
+  -i ${MY_DIR}/DATA/$num/CM_reco_Bi_$num.brio \
+    -p ${MY_DIR}/0cut.conf \
+  -o ${MY_DIR}/DATA/$num/0cut/reco_Bi_$num.brio
+ 
