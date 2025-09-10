@@ -1,145 +1,152 @@
-# GeometricEfficiencies
-Geometric efficiency for superNEMO OM-Bismuth source pairs
+# Geometric Efficiencies for Bi-207 Calibration Sources in SuperNEMO
 
-This project revolves around the calculation and visualization of geometrical efficiencies of main wall optical module-Bismuth source pairs in superNEMO experiment.
+This project computes and visualizes the **geometrical detection efficiencies** of the **Main Wall Optical Modules (OMs)** with respect to the **Bi-207 calibration sources** in the SuperNEMO experiment.
 
-source_positions.txt.in: contains positions of the 42 Bismuth sources as provided by Filip's CalibrationModule
-source_positions.txt: Same, but have one more collumn with numeration of sources
+It combines **simulation, reconstruction, analysis, and visualization** into one workflow.
 
-source_activity.txt.in: contains activities associated with each Bismuth source and their associated numbers as numbered by superNEMO (not explicitly used in the code)
-0m_positions.txt: contains positions of the 260 optical modules
+---
 
-manager.sh:
+## 📂 Project Structure
 
+### 1. Input Data Files
 
-This script is the controller of the whole workflow.
-It creates directories for each job,
+- **`source_positions.txt.in`**  
+  Original list of Bi-207 source coordinates (from Filip’s CalibrationModule).  
 
-copies configuration files into them,
+- **`source_positions.txt`**  
+  Same list, but reformatted: adds a first column with **source index (0–41)**.  
+  → Used by analysis/plotting code.  
 
-submits batch jobs to SLURM using the chosen script (send_simu.sh or send_cuts.sh).
+- **`source_activity.txt.in`**  
+  Activities (strengths) of each source, paired with its ID.  
+  → Used for weighting efficiency maps.  
 
+- **`om_positions.txt`**  
+  Coordinates of all **260 optical modules (OMs)** in the Main Wall.  
 
-simu.profile:
+---
 
+### 2. Simulation Configuration
 
-Defines the detector layout, source material, source thickness, calibration, and simulation settings.
+- **`simu.profile`**  
+  Defines detector geometry and simulation parameters:  
+  - Source thickness, material, shielding  
+  - Calibration setup (tracks to simulate)  
+  - Particle generator (`calibBi207`)  
+  - Physics mode (`Constructors`, EM model)  
 
-Examples of parameters:
+- **`simu_setup.conf`**  
+  Tells **flsimulate** how to run the simulation:  
+  - `numberOfEvents = 1000000` (events per run)  
+  - Path to `simu.profile`  
 
-layout/if_basic/source_layout/thickness = 250 um
+---
 
-tracking_gas_material = "Nemo3"
+### 3. Reconstruction Configuration
 
-generator = "calibBi207" → particle generator for Bi-207.
+- **`reco.conf`**  
+  Standard reconstruction pipeline (uses plugins like `GammaTracking`).  
 
-This file is read by the simulator to know what physics and geometry to simulate.
+- **`reco0cut.conf`**  
+  Same as above, but **no event cuts applied** (baseline reconstruction).  
 
+- **`pipeline.conf`**  
+  Defines the exact reconstruction pipeline used by `reco.conf`.  
 
-simu_setup.conf:
+- **`pipeline0cut.conf`**  
+  Pipeline for `reco0cut.conf`.  
 
+- **`0cut.conf`**  
+  Another reconstruction config with **no cuts**, used for efficiency calculation in `simu_eff.cpp`.  
 
-Controls the simulation run:
+- **`SNCutsAndMiModule.conf`**  
+  Custom reconstruction pipeline using:  
+  - **`SNCuts`** → applies event selection (energy, track, proximity, etc.)  
+  - **`MiModule`** → custom module for event handling  
 
-Number of events to generate (numberOfEvents = 1000000).
+  Example cuts:  
+  - `hasNumberofKinks = "1 0"` → only accept events with one kinked track  
+  - `useEventTrackHasOneAssocCaloHit = true` → one calo hit per track  
 
-Which variant profile to use (points to simu.profile).
+---
 
+### 4. Job Management Scripts
 
-send_simu.sh:
+- **`manager.sh`**  
+  High-level controller script:  
+  - Creates run directories (`DATA_2/0`, `DATA_2/1`, …).  
+  - Copies all needed config files into them.  
+  - Submits jobs via SLURM (`sbatch`).  
+  - Arguments:  
+    ```sh
+    ./manager.sh 0 10 send_simu.sh
+    ```
+    → runs jobs for runs **0–10** using `send_simu.sh`.
 
+- **`send_simu.sh`**  
+  SLURM job script to run simulation **+ reconstruction**.  
+  Steps:  
+  1. `flsimulate` → generate events with `simu_setup.conf`.  
+  2. `flreconstruct` → reconstruct with `reco.conf`.  
+  3. Cleanup temporary `.brio` files.  
 
-Shell script to submit the simulation job via SLURM (cluster job scheduler).
+- **`send_cuts.sh`**  
+  SLURM job script for reconstruction **with cuts**, using `SNCutsAndMiModule.conf`.  
 
-Arguments:
+- **`send.sh`**  
+  Combined script to run **simulation + reconstruction + cuts** in one go.  
+  (Optional; `manager.sh` usually controls the workflow.)  
 
-$1 = directory number to store the output (for batch simulations).
+---
 
-Commands executed:
+### 5. Efficiency Calculation & Analysis
 
-flsimulate → run simulation using simu_setup.conf
+- **`simu_eff.cpp`**  
+  ROOT C++ program to compute efficiencies:  
+  - Reads reconstructed `.root` files.  
+  - Counts how many events were generated per source (`N_before`).  
+  - Counts how many events hit each OM (`N_after`).  
+  - Efficiency = `N_after / N_before`.  
+  - Saves per-source histograms (`hist0 … hist41`) into **`simu_eff.root`**.  
 
-flreconstruct → basic reconstruction on the simulated events
+- **`total_eff.cpp`**  
+  Computes the **global efficiency** (summing all sources and OMs).  
+  Saves result in **`total_eff.root`**.  
 
-Cleans up raw simulation files if needed
+- **`plotting.cpp`**  
+  Helper plotting macro (alternative to `visu.cpp`).  
+  → Can be used for quick diagnostic plots of histograms.  
 
-Example usage: sbatch send_simu.sh 0   # Run simulation for directories 0
+---
 
+### 6. Visualization
 
-reco.conf:
+- **`visu.cpp`**  
+  ROOT C++ program to create publication-quality figures:  
+  - For each source: efficiency map (`eps_G_source_XX.png`).  
+  - Source & OM positions map (`source_OM_map.png`).  
+  - Weighted efficiency sum (all sources weighted by activity).  
 
+- **`plots/`**  
+  Output folder with generated PNGs.  
 
-Defines the reconstruction pipeline:
+---
 
-Which plugins to load: Falaise_TKReconstruct, GammaTracking, Falaise_GammaClustering.
+### 7. Output Files
 
-Variant profile to use: points to simu.profile.
+- **`simu_eff.root`**  
+  Contains per-source efficiency histograms (`hist0 … hist41`).  
 
-Path to the pipeline config file (e.g., pipeline.conf).
+- **`total_eff.root`**  
+  Contains total/global efficiency histograms.  
 
-Used by flreconstruct to reconstruct detector events.
+---
 
-reco0cut.conf:
+## 🔄 Workflow Overview
 
-Makes everything same like reco.conf, just without cuts.
+1. **Prepare input files**  
+   (`source_positions.txt`, `om_positions.txt`, `source_activity.txt.in`, configs).  
 
-
-SNCutsAndMiModule.conf:
-
-
-Defines a custom reconstruction pipeline using:
-
-SNCuts → applies standard cuts (energy, track criteria, proximity to source)
-
-MiModule → handles custom module data
-
-Contains cut parameters:
-
-hasNumberofKinks = "1 0" → only accept events with one kinked track
-
-useEventTrackHasOneAssocCaloHit = true → track must have one calorimeter hit
-
-Allows flexible tuning of cuts for analysis.
-
-
-0cut.conf:
-
-Reconstruction without any cuts. Works like SNCutsAndMiModule.conf, is needed for simu_eff.cpp
-
-
-send_cuts.sh:
-
-SLURM shell script to run flreconstruct with SNCutsAndMiModule.conf.
-
-Reads reconstructed events from simulation and applies cuts.
-
-Outputs results as .brio ROOT files ready for efficiency calculation.
-
-send.sh:
-
-Optional: full workflow script combining simulation and reconstruction.
-
-Can be used to run everything in one go.
-
-simu_eff.cpp
-
-Reads reconstructed events after cuts (.root files) and calculates detection efficiency for each source and OM.
-
-Key steps:
-
-Read source and OM positions from text files (source_positions.txt.in, om_positions.txt).
-
-Loop over events:
-
-Count how many events were generated per source (count_root_before)
-
-Count how many events were detected in each OM (count_root_after)
-
-Compute efficiency per OM and source.
-
-Save efficiency maps for each source as histograms in simu_eff.root.
-
-Also precomputes MainWall OM positions to map events to physical coordinates (Y,Z).
-
-
-Example usage:
+2. **Run jobs with manager**  
+   ```sh
+   ./manager.sh 0 5 send_simu.sh
