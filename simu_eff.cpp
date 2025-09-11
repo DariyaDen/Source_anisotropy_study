@@ -310,31 +310,6 @@ if (N_before[k] > 0) {
     hist->Write();
 }
 
- /*  for(int k=0;k<N_sources;k++){
-        TH2D* hist = new TH2D(Form("hist%d",k),
-                              Form("Efficiency source %d",k),
-                              NBX, -XH, XH, NBY, -YH, YH);
-
-      //  for(int i=0;i<N_sources;i++){
-      for (int j=0; j<N_OMs; j++) {
-    int xbin = j / NBY;
-    int ybin = j % NBY;
-    double eff = (N_before[k] > 0) ? double(N_after[k][j]) / N_before[k] : 0.0;
-    std::cout << N_before[k] << " " << eff << std::endl;
-    if (xbin < NBX && ybin < NBY) {
-        hist->SetBinContent(xbin+1, ybin+1, eff);
-    }
-}
-/*
-        for(int j=0;j<N_OMs;j++){
-            int ybin=j/NBY;
-            int zbin=j%NBY;
-            double eff = (N_before[k]>0) ? double(N_after[k][j])/N_before[k] : 0.0;
-            std::cout<<N_before[k]<<" "<<eff<<endl;
-            hist->SetBinContent(ybin+1, zbin+1, eff);
-        } */ // }
-    //    hist->Write();
-  //  } 
     fout->Close();
 }
 
