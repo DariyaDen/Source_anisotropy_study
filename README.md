@@ -14,6 +14,18 @@ It combines **simulation, reconstruction, analysis, and visualization** into one
 
 **master** – 🚧 Work-in-progress branch for theoretical efficiencies (not fully implemented yet).
 
+## ⚠️ Known Issue
+
+File: simu_eff.cpp
+
+Problem: 🖼️ Visualizations look incorrect (see the plots/ folder for examples).
+
+Cause: N_after unexpectedly becomes 0 in many cases.
+
+Suspected source: count_root_after function.
+
+Status: 🛠️ Debug logs are already in place to catch cases with strange GID, which should help identify the root cause.
+
 ### 1. Input Data Files
 
 - **`source_positions.txt.in`(exist in both branches)**  
